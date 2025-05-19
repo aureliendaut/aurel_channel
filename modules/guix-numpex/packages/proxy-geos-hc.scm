@@ -260,6 +260,34 @@ Current implementation of the proxyApp includes SEM (Spectral finite Element Met
 (define-public proxy-geos-raja-cuda-a100
   (make-proxy-geos-raja-cuda-arch "proxy-geos-raja-cuda-a100" "80" camp-cuda-a100 raja-cuda-a100 chai-cuda-a100))
 
+;; HIP packaging KOKKOS
+
+(define (make-proxy-geos-kokkos-hip name kokkos-hip hip-package myhiparch)
+  (package/inherit proxy-geos-kokkos
+  (name name)
+  (arguments (substitute-keyword-arguments (package-arguments proxy-geos-kokkos)
+                 ((#:configure-flags flags)
+                  #~(append (list (string-append "-DCMAKE_HIP_ARCHITECTURES="#$myhiparch)
+                                  "-DENABLE_HIP=ON"
+                                  (string-append "-DROCM_PATH="#$(this-package-input "hipamd"))
+                                  (string-append "-DDEVICE=GPU_SM"#$myhiparch))
+                              #$flags))
+                 ;; Cannot run tests due to lack of specific hardware
+                 ((#:tests? _ #t)
+                  #f)
+                 ;; RUNPATH validation fails since libcuda.so.1 is not present at build
+                 ;; time.
+                 ((#:validate-runpath? #f #f)
+                  #f)))
+  (inputs (modify-inputs (package-inputs proxy-geos-kokkos)
+      (delete "kokkos")
+      (append kokkos-hip)
+      (prepend hip-package)))))
+
+(define-public proxy-geos-kokkos-hip-gfx906
+  (make-proxy-geos-kokkos-hip "proxy-geos-kokkos-hip-gfx906" kokkos-hip-gfx906 hip "gfx906"))
+
+
 ;; ;; This allows you to run guix shell -f proxy-geosx-hc.scm.
 ;; ;; Remove this line if you just want to define a package.
 ;; ;; proxy-geos-hc
