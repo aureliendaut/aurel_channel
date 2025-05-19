@@ -1,12 +1,14 @@
-(define-module (guix-numpex packages proxy-geos-hc)
+(define-module (guix-numpex_pc5 packages proxy-geos-hc)
   #:use-module (guix)
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (gnu packages)
   #:use-module (guix build-system cmake)
   #:use-module (guix git-download)
   #:use-module (guix-hpc-non-free packages cpp)
-  #:use-module (guix-science-nonfree packages cuda)
-  #:use-module (guix-numpex packages kokkos-raja-models)
+  #:use-module (guix-science-nonfree packages cuda) 
+  #:use-module (amd packages rocm-hip)
+  #:use-module (amd packages rocm-libs)
+  #:use-module (guix-numpex_pc5 packages kokkos-raja-models)
   #:use-module (llnl tainted geos)
   #:use-module (llnl geos)
   #:use-module (gnu packages cpp)
@@ -52,7 +54,7 @@ It is intended to be a standard tool for evaluating and comparing the performanc
 Current implementation of the proxyApp includes SEM (Spectral finite Element Methods) and FD (Finite Differences methods) to solve 2nd order acoustic wave equation")
     (license license:gpl1+)))
 
-;; proxy-geos with kokkos (the default is serial).  (fd_Kokkos and sem_Kokkos executables)
+    ;; proxy-geos with kokkos (the default is serial).  (fd_Kokkos and sem_Kokkos executables)
 (define-public proxy-geos-kokkos
   (package
     (inherit proxy-geos)
@@ -65,22 +67,6 @@ Current implementation of the proxyApp includes SEM (Spectral finite Element Met
     (inputs
       (modify-inputs (package-inputs proxy-geos)
         (prepend kokkos)))
-  ))
-
-;; proxy-geos using OMP (std::vector array).  (fd_OMP and sem_OMP executables)
-(define-public proxy-geos-omp
-  (package
-    (inherit proxy-geos)
-    (name "proxy-geos-omp")
-    (arguments
-      (substitute-keyword-arguments (package-arguments proxy-geos)
-        ((#:configure-flags flags)
-        #~(append (list "-DUSE_OMP=ON"
-                        "-DENABLE_OPENMP=ON")
-                  #$flags))))
-    (inputs
-      (modify-inputs (package-inputs proxy-geos)
-        (prepend libomp)))
   ))
 
 ;; for proxy-geos with KOKKOS and only openmp enabled, use the following package transformation
@@ -247,22 +233,11 @@ Current implementation of the proxyApp includes SEM (Spectral finite Element Met
 
 (define-public proxy-geos-raja-cuda-ada
   (make-proxy-geos-raja-cuda-arch "proxy-geos-raja-cuda-ada" "89" camp-cuda-ada raja-cuda-ada chai-cuda-ada))
-(define-public proxy-geos-raja-cuda-v100
-  (make-proxy-geos-raja-cuda-arch "proxy-geos-raja-cuda-v100" "70" camp-cuda-v100 raja-cuda-v100 chai-cuda-v100))
-(define-public proxy-geos-raja-cuda-t4
-  (make-proxy-geos-raja-cuda-arch "proxy-geos-raja-cuda-t4" "75" camp-cuda-t4 raja-cuda-t4 chai-cuda-t4))
-(define-public proxy-geos-raja-cuda-p100
-  (make-proxy-geos-raja-cuda-arch "proxy-geos-raja-cuda-p100" "60" camp-cuda-p100 raja-cuda-p100 chai-cuda-p100))
-(define-public proxy-geos-raja-cuda-k40
-  (make-proxy-geos-raja-cuda-arch "proxy-geos-raja-cuda-k40" "35" camp-cuda-k40 raja-cuda-k40 chai-cuda-k40))
-(define-public proxy-geos-raja-cuda-a40
-  (make-proxy-geos-raja-cuda-arch "proxy-geos-raja-cuda-a40" "86" camp-cuda-a40 raja-cuda-a40 chai-cuda-a40))
-(define-public proxy-geos-raja-cuda-a100
-  (make-proxy-geos-raja-cuda-arch "proxy-geos-raja-cuda-a100" "80" camp-cuda-a100 raja-cuda-a100 chai-cuda-a100))
+
 
 ;; HIP packaging KOKKOS
 
-(define (make-proxy-geos-kokkos-hip name kokkos-hip hip-package myhiparch)
+(define (make-proxy-geos-kokkos-hip name kokkos-hip myhiparch)
   (package/inherit proxy-geos-kokkos
   (name name)
   (arguments (substitute-keyword-arguments (package-arguments proxy-geos-kokkos)
@@ -270,23 +245,31 @@ Current implementation of the proxyApp includes SEM (Spectral finite Element Met
                   #~(append (list (string-append "-DCMAKE_HIP_ARCHITECTURES="#$myhiparch)
                                   "-DENABLE_HIP=ON"
                                   (string-append "-DROCM_PATH="#$(this-package-input "hipamd"))
-                                  (string-append "-DDEVICE=GPU_SM"#$myhiparch))
+                                  (string-append "-DDEVICE=GPU_"#$myhiparch))
                               #$flags))
                  ;; Cannot run tests due to lack of specific hardware
                  ((#:tests? _ #t)
                   #f)
-                 ;; RUNPATH validation fails since libcuda.so.1 is not present at build
-                 ;; time.
+                 ;; RUNPATH validation fails
                  ((#:validate-runpath? #f #f)
                   #f)))
   (inputs (modify-inputs (package-inputs proxy-geos-kokkos)
       (delete "kokkos")
       (append kokkos-hip)
-      (prepend hip-package)))))
+      (append rocprim)
+      (prepend hipamd)))))
 
-(define-public proxy-geos-kokkos-hip-gfx906
-  (make-proxy-geos-kokkos-hip "proxy-geos-kokkos-hip-gfx906" kokkos-hip-gfx906 hip "gfx906"))
+(define-public proxy-geos-kokkos-hip-vega900
+  (make-proxy-geos-kokkos-hip "proxy-geos-kokkos-hip-vega900" kokkos-hip-vega900 "gfx900"))
 
+(define-public proxy-geos-kokkos-hip-vega906
+  (make-proxy-geos-kokkos-hip "proxy-geos-kokkos-hip-vega906" kokkos-hip-vega906 "gfx906"))
+
+(define-public proxy-geos-kokkos-hip-vega908
+  (make-proxy-geos-kokkos-hip "proxy-geos-kokkos-hip-vega908" kokkos-hip-vega908 "gfx908"))
+
+(define-public proxy-geos-kokkos-hip-vega90A
+  (make-proxy-geos-kokkos-hip "proxy-geos-kokkos-hip-vega90A" kokkos-hip-vega90A "gfx90A"))
 
 ;; ;; This allows you to run guix shell -f proxy-geosx-hc.scm.
 ;; ;; Remove this line if you just want to define a package.
